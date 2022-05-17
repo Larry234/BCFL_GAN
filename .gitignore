@@ -1,0 +1,7 @@
+# ignore files
+# ignore datasets
+after_4_bis
+Images
+*venv.cfg
+bin/*
+lib/*
