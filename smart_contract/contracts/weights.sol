@@ -3,23 +3,25 @@ pragma solidity >=0.4.22 <0.9.0;
 
 contract NetworkWeights {
     
-    mapping(address => Item[]) public items;
+    mapping(uint => Item[]) public items;
     mapping(uint => Group) groups;
 
     uint[] group_ids;
+    string[] global_models;
 
     // data structures
     struct Item {
-        uint8 round;
+        address sender;
         string IPFS_hash;
     }
 
     struct Group {
-        uint8 member_count;
+        uint member_count;
         address[] members;
     }
     
     // events
+    event createGroup(address sender, uint group_id);
     event aggregater_selected(address aggregater);
     event startNextIter(); // signals to inform client nodes to start next iteration
     event stopTraining();
@@ -34,6 +36,7 @@ contract NetworkWeights {
         members[0] = msg.sender;
         Group memory initial_group = Group(1, members);
         groups[group_id] = initial_group;
+        emit createGroup(msg.sender, group_id);
 
     }
 
@@ -65,21 +68,34 @@ contract NetworkWeights {
         groups[group_id].member_count --;
     }
 
-    function upload_model(string memory hs) public {
-
+    function get_groupMembers() public pure returns (uint[] memory){
+        uint[] memory ret = new uint[](8);
+        ret[0] = 123;
+        return ret;
     }
 
-    function fetch_model() public view returns(string memory) {
+    // function upload_model(string memory hs, uint round) public {
 
-    }
+        
+    // }
 
-    function select_aggregater() public returns(uint8) {
+    // function fetch_model(uint round, string memory mode) public view returns(string[] memory) {
+        
+    // }
 
-    }
+    // function fetch_global_model(uint round) public view returns (string memory) {
 
-    function validate() public {
+    //     require(keccak256(bytes(global_models[round])) != keccak256(bytes("")), 'Global Model not upload yet!');
+    //     return global_models[round];
+    // }
 
-    }
+    // function select_aggregater() public returns(uint8) {
+
+    // }
+
+    // function validate() public {
+
+    // }
 
 
 
