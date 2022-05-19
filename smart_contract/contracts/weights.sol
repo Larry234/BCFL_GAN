@@ -6,6 +6,8 @@ contract NetworkWeights {
     mapping(uint => Item[]) public items;
     mapping(uint => Group) groups;
 
+    int group_counts;
+
     uint[] group_ids;
     string[] global_models;
 
@@ -17,27 +19,32 @@ contract NetworkWeights {
 
     struct Group {
         uint member_count;
+        uint aggregater_id;
         address[] members;
     }
     
     // events
-    event createGroup(address sender, uint group_id);
+    event createGroup(address creator, uint group_id);
+    event allModel_uploaded();
     event aggregater_selected(address aggregater);
-    event startNextIter(); // signals to inform client nodes to start next iteration
+    event fetch_global(string global_hs);
     event stopTraining();
 
     constructor() {
-
+        group_counts = 0;
     }
 
     function init_group(uint MaxRegistry, uint group_id) public {
 
         address[] memory members = new address[](MaxRegistry);
         members[0] = msg.sender;
-        Group memory initial_group = Group(1, members);
+        Group memory initial_group = Group(1, 0, members);
         groups[group_id] = initial_group;
-        emit createGroup(msg.sender, group_id);
+        group_ids.push(group_id);
+        group_counts++;
 
+        // trigger event
+        emit createGroup(msg.sender, group_id);
     }
 
     function join_group(uint group_id) public {
@@ -68,35 +75,64 @@ contract NetworkWeights {
         groups[group_id].member_count --;
     }
 
-    function get_groupMembers() public pure returns (uint[] memory){
-        uint[] memory ret = new uint[](8);
-        ret[0] = 123;
+    function upload_model(string memory hs, uint round, uint group_id) public {
+
+        Item memory item = Item(msg.sender, hs);
+        items[round].push(item);
+
+        // check if all clients upload their model
+        if (items[round].length == groups[group_id].member_count) {
+            emit allModel_uploaded();
+        }
+    }
+
+    function upload_global_model(string memory hs, uint round, uint group_id) public {
+
+        uint selected = groups[group_id].aggregater_id;
+        require(groups[group_id].members[selected] == msg.sender, "You are not the selected aggregater this round!");
+
+        global_models[round] = hs; // upload global model
+
+        // update aggregater for next round
+        groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
+
+        // trigger event to let client update model
+        emit fetch_global(hs);
+        
+    }
+
+
+    function fetch_model(uint round, uint group_id) public view returns(string [] memory) {
+
+        uint data_count = groups[group_id].member_count;
+        string[] memory ret = new string[](data_count);
+
+        // fetch all model stored in contract
+        for (uint i = 0; i < data_count; i++) {
+            ret[i] = items[round][i].IPFS_hash;
+        }
         return ret;
     }
 
-    // function upload_model(string memory hs, uint round) public {
+    function fetch_global_model(uint round) public view returns (string memory) {
 
-        
-    // }
+        require(keccak256(bytes(global_models[round])) != keccak256(bytes("")), 'Global Model not upload yet!');
+        return global_models[round];
+    }
 
-    // function fetch_model(uint round, string memory mode) public view returns(string[] memory) {
-        
-    // }
 
-    // function fetch_global_model(uint round) public view returns (string memory) {
+    function get_aggregater(uint group_id) public view returns(uint) {
 
-    //     require(keccak256(bytes(global_models[round])) != keccak256(bytes("")), 'Global Model not upload yet!');
-    //     return global_models[round];
-    // }
+        return groups[group_id].aggregater_id;
+    }
 
-    // function select_aggregater() public returns(uint8) {
+
+    // function vote() public {
 
     // }
 
     // function validate() public {
 
     // }
-
-
 
 }
