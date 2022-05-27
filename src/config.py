@@ -1,0 +1,3 @@
+GETH_URL = ""
+CONTRACT_ADDRESS = ""
+ABI = ""
