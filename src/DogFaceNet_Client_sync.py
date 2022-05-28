@@ -17,6 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("--creator", help="Group creator", action="store_true")
     parser.add_argument("--group", "ID of federated learning group", type=int)
     parser.add_argument("--registry", "number of registries", type=int)
+    parser.add_argument("--round", "number of training rounds", type=int)
 
     args = parser.parse_args()
 
@@ -43,6 +44,11 @@ if __name__ == '__main__':
     else: # join group
         join_group(contract_ins, args.group)
 
+    while True:
+        for event_log in training_filter.get_new_entries():
+            # handle event log
+            res = web3.Web3.toJSON(event_log)
+            
     
 
     # ============================================================
