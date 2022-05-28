@@ -24,7 +24,7 @@ contract NetworkWeights {
     }
     
     // events
-    event createGroup(address creator, uint group_id);
+    event startTraining(uint group_id);
     event allModel_uploaded();
     event aggregater_selected(address aggregater);
     event fetch_global(string global_hs);
@@ -42,15 +42,16 @@ contract NetworkWeights {
         groups[group_id] = initial_group;
         group_ids.push(group_id);
         group_counts++;
-
-        // trigger event
-        emit createGroup(msg.sender, group_id);
     }
 
     function join_group(uint group_id) public {
 
         groups[group_id].member_count += 1;
         groups[group_id].members.push(msg.sender); // add new member into address array
+
+        if (groups[group_id].member_count == groups[group_id].members.length) {
+            emit startTraining(group_id);
+        }
     }
 
     function leave_group(uint group_id) public {
