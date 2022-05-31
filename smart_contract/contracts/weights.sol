@@ -7,6 +7,7 @@ contract NetworkWeights {
     mapping(uint => Item[]) public dis_models;
     mapping(uint => Group) groups;
     mapping(uint => uint[]) votes;
+    mapping(uint => uint[]) validators;
 
     int group_counts;
 
@@ -27,12 +28,10 @@ contract NetworkWeights {
     }
     
     // events
-    event startTraining(uint group_id);
     event allModel_uploaded();
     event aggregation_complete(uint round, uint group_id);
     event global_accept(uint round, uint group);
     event global_reject(uint round, uint group);
-    event stopTraining();
 
     constructor() {
         group_counts = 0;
@@ -53,10 +52,6 @@ contract NetworkWeights {
 
         groups[group_id].member_count += 1;
         groups[group_id].members.push(msg.sender); // add new member into address array
-
-        if (groups[group_id].member_count == groups[group_id].members.length) {
-            emit startTraining(group_id);
-        }
 
         return groups[group_id].member_count - 1;
     }
@@ -182,12 +177,13 @@ contract NetworkWeights {
         return groups[group_id].aggregater_id;
     }
 
-    function vote(uint res, uint group_id, uint round) public {
+    function vote(uint res, uint group_id, uint round, uint voters) public {
 
         votes[round].push(res);
 
-        uint voters = groups[group_id].member_count / 2;
         uint accepts = 0;
+
+        // every validators have participated in the voting of this round
         if (votes[round].length == voters) {
 
             for (uint i = 0; i < votes[round].length; i++) {
@@ -206,21 +202,28 @@ contract NetworkWeights {
         }
     }
 
-    function get_validator(uint group_id) public returns (uint[] memory){
+    function choose_validator(uint round, uint[] memory vals) public {
         
-        uint[] memory validators = new uint[](groups[group_id].member_count / 2);
-
-        for (uint i = 0; i < (groups[group_id].member_count / 2); i++) {
-
-            validators[i] = groups[group_id].aggregater_id;
-            groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
+        for (uint i = 0; i < vals.length; i++) {
+            validators[round].push(vals[i]);
         }
-
-        return validators;
     }
 
-    function get_max_member(uint group_id) public view returns (uint) {
-        return groups[group_id].members.length;
+    function get_validator(uint round) public view returns (uint[] memory) {
+
+        return validators[round];
+    }
+
+
+    // ============================================================================
+    // utility functions for debugging
+    
+    function get_genCount(uint round) public view returns (uint) {
+        return gen_models[round].length;
+    }
+
+    function get_disCount(uint round) public view returns (uint) {
+        return dis_models[round].length;
     }
 
     function get_member_count(uint group_id) public view returns (uint) {

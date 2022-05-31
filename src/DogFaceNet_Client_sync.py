@@ -46,6 +46,7 @@ if __name__ == '__main__':
 
     # Configure web3
     web_3 = web3.Web3(web3.HTTPProvider(GETH_URL))
+    web_3.eth.defaultAccount = web_3.eth.accounts[0]
 
     # connect with contract
     address = web_3.toChecksumAddress(CONTRACT_ADDRESS)
@@ -192,7 +193,6 @@ if __name__ == '__main__':
                     log_dict = log_pair
                 time.sleep(pool_interval)
                 break
-        
 
         # validate stage
 
