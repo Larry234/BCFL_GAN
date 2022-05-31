@@ -29,9 +29,9 @@ contract NetworkWeights {
     // events
     event startTraining(uint group_id);
     event allModel_uploaded();
-    event aggregation_complete(uint round, uint group_id, address aggregater);
-    event global_accept();
-    event fetch_global(uint group_id, uint round);
+    event aggregation_complete(uint round, uint group_id);
+    event global_accept(uint round, uint group);
+    event global_reject(uint round, uint group);
     event stopTraining();
 
     constructor() {
@@ -46,7 +46,7 @@ contract NetworkWeights {
         groups[group_id] = initial_group;
         group_ids.push(group_id);
         group_counts++;
-        return groups[group_id].member_count - 1; // return his id in the group to client 
+        return groups[group_id].member_count - 1; // return id in the group to client 
     }
 
     function join_group(uint group_id) public returns(uint){
@@ -114,30 +114,45 @@ contract NetworkWeights {
     function upload_global_genModel(string memory hs, uint round, uint group_id) public {
 
         uint selected = groups[group_id].aggregater_id;
-        require(groups[group_id].members[selected] == msg.sender, "You are not the selected aggregater this round!");
+        string memory empty = "";
 
+        // only chosen aggregater can upload global model
+        require(groups[group_id].members[selected] == msg.sender, "You are not the selected aggregater this round!"); 
+
+        // global model cannot be uploaded more than once
+        require(keccak256(abi.encodePacked(global_genModels[round])) == keccak256(abi.encodePacked(empty)));
         global_genModels[round] = hs; // upload global model
 
         // update aggregater for next round
         groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
 
-        // trigger event to let client update model
-        // emit fetch_global(hs);
+        if (keccak256(abi.encodePacked(global_disModels[round])) != keccak256(abi.encodePacked(empty)))
+        {
+            emit aggregation_complete(round, group_id);
+        }
         
     }
 
-        function upload_global_disModel(string memory hs, uint round, uint group_id) public {
+    function upload_global_disModel(string memory hs, uint round, uint group_id) public {
 
         uint selected = groups[group_id].aggregater_id;
+        string memory empty = "";
+
+        // only chosen aggregater can upload global model
         require(groups[group_id].members[selected] == msg.sender, "You are not the selected aggregater this round!");
+
+        // global model cannot be uploaded more than once
+        require(keccak256(abi.encodePacked(global_disModels[round])) == keccak256(abi.encodePacked(empty)));
 
         global_disModels[round] = hs; // upload global model
 
         // update aggregater for next round
         groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
 
-        // trigger event to let client update model
-        // emit fetch_global(hs);
+        if (keccak256(abi.encodePacked(global_genModels[round])) != keccak256(abi.encodePacked(empty)))
+        {
+            emit aggregation_complete(round, group_id);
+        }
         
     }
 
@@ -153,6 +168,7 @@ contract NetworkWeights {
             gen_ret[i] = gen_models[round][i].IPFS_hash;
             dis_ret[i] = dis_models[round][i].IPFS_hash;
         }
+
         return (gen_ret, dis_ret);
     }
 
@@ -161,40 +177,54 @@ contract NetworkWeights {
         return (global_genModels[round], global_disModels[round]);
     }
 
-
     function get_aggregater(uint group_id) public view returns(uint) {
 
         return groups[group_id].aggregater_id;
     }
 
-    function get_max_member(uint group_id) public view returns(uint) {
-        return groups[group_id].members.length;
-    }
-
-    function get_member_count(uint group_id) public view returns(uint) {
-        return groups[group_id].member_count;
-    }
-
-
     function vote(uint res, uint group_id, uint round) public {
 
         votes[round].push(res);
 
+        uint voters = groups[group_id].member_count / 2;
         uint accepts = 0;
-        if (votes[round].length == groups[group_id].member_count) {
+        if (votes[round].length == voters) {
 
             for (uint i = 0; i < votes[round].length; i++) {
                 if (votes[round][i] == 1) accepts++; // client accept this global model
             }
+            
+            // Global model is accepted
+            if (accepts >= (voters / 2)) {
+                emit global_accept(round, group_id);
+            }
 
-            if (accepts > groups[group_id].member_count / 2) {
-                emit global_accept();
+            // Global model is rejected
+            else {
+                emit global_reject(round, group_id);
             }
         }
     }
 
-    // function validate() public {
+    function get_validator(uint group_id) public returns (uint[] memory){
+        
+        uint[] memory validators = new uint[](groups[group_id].member_count / 2);
 
-    // }
+        for (uint i = 0; i < (groups[group_id].member_count / 2); i++) {
+
+            validators[i] = groups[group_id].aggregater_id;
+            groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
+        }
+
+        return validators;
+    }
+
+    function get_max_member(uint group_id) public view returns (uint) {
+        return groups[group_id].members.length;
+    }
+
+    function get_member_count(uint group_id) public view returns (uint) {
+        return groups[group_id].member_count;
+    }
 
 }
