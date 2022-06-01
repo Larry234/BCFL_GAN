@@ -9,7 +9,9 @@ import json
 import ipfshttpclient
 
 import argparse
+import random
 import glob
+from tqdm import tqdm
 
 from config import *
 from utils import *
@@ -53,9 +55,10 @@ if __name__ == '__main__':
     contract_ins = web_3.eth.contract(address=address, abi=ABI) # create contract instance
 
     # define event filters
-    training_filter = contract_ins.events.startTraining.createFilter(fromBlock='latest')
-    aggregate_filter = contract_ins.events.aggregater_selected.createFilter(fromBlock='latest')
-    model_filter = contract_ins.events.allModel_uploaded.createFilter(fromBlock='latest')
+    aggregate_filter = contract_ins.events.aggregater_selected.createFilter(fromBlock=0, toBlock='latest')
+    model_filter = contract_ins.events.allModel_uploaded.createFilter(fromBlock=0, toBlock='latest')
+    globalA_filter = contract_ins.events.global_accept.createFilter(fromBlock=0, toBlock='latest')
+    globalR_filter = contract_ins.events.global_reject.createFilter(fromBlock=0, toBlock='latest')
 
     device = torch.device("cuda:{}".format(args.device) if torch.cuda.is_available() else "cpu")
 
@@ -103,11 +106,17 @@ if __name__ == '__main__':
             
     # ============================================================
     # Training stage
-    for round in range(rounds):
+    for round in range(1, rounds + 1):
+        print(f'============================== round {round} ==============================')
+        best_g = 100
+        best_d = 100
 
-        for epoch in range(epochs):
+        for epoch in range(1, epochs + 1):
 
-            for i, (img, _) in enumerate(dataloader):
+            gen_loss = 0
+            dis_loss = 0
+
+            for i, (img, _) in enumerate(tqdm(dataloader)):
 
                 ############################
                 # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -166,35 +175,159 @@ if __name__ == '__main__':
 
                 # Update G
                 optimizerG.step()
-        
-        # upload model
 
+                gen_loss += errG.item()
+                dis_loss += errD.item()
+
+                # save the best result
+                if errG.item() < best_g:
+                    best_g = errG.item()
+                
+                if (errD.item() < best_d):
+                    best_d = errD.item()
+
+            # log training result
+            print("epoch[{}/{}]:\nLoss_D: {:.4f} Loss_G: {:.4f}".format(epoch, epochs, dis_loss/len(dataloader), gen_loss/len(dataloader)))
+
+        # upload model
+        # save model state_dict to json format
+        gen = dict()
+        dis = dict()
+
+        for k, v in generator.state_dict().items():
+            gen[k] = v.tolist()
+        
+        for k, v in discriminator.state_dict().items():
+            dis[k] = v.tolist()
+        
+        gen_hs = client.add_json(gen)
+        dis_hs = client.add_json(dis)
+
+        contract_ins.functions.upload_genModel(gen_hs, round, group_id).transact()
+        contract_ins.functions.upload_disModel(dis_hs, round, group_id).transact()
+
+        upload_finish = False    
+
+        print("Wait for all clients upload their models...")
+        # wait for all clients upload their model
+        while not upload_finish:
+            for log in model_filter.get_new_entries():
+                res = log[0]['args']
+                if res['round'] == round:
+                    upload_finish = True
+                time.sleep(pool_interval)
+        
+        # =========================================================
         # Aggregate stage
         aggreator_id = contract_ins.functions.get_aggreator(group_id).call()
-
+        total = contract_ins.functions.get_member_count(group_id).call()
+        count = int(total / 2)
         model_list = list()
 
         # this client is the chosen aggreator
         if aggreator_id == id: 
-
             models_hs = contract_ins.functions.fetch_model(round, group_id).call()
 
             # fetch files from IPFS
             for hs in models_hs:
-                client.get(hs)
+                client.cat(hs)
 
-            # load weight files
+            # take average of model weights
+
+            # generate random id for validation
+            val_id = random.sample(range(total), count)
+            contract_ins.functions.choose_validator(round, val_id).transact()
+
 
         # wait for aggregation complete
-        else:
-            
-            while True:
-                for log_pair in aggregate_filter.get_new_entries():
-                    log_dict = log_pair
-                time.sleep(pool_interval)
-                break
+        else:   
+            aggregation_complete = False
 
+            # wait for aggregation complete
+            print("Wait for aggregation complete...")
+            while not aggregation_complete:
+                for log in aggregate_filter.get_new_entries():
+                    res = log[0]['args']
+                    if res['round'] == round: # aggregation of this round has completed
+                        aggregation_complete = True
+
+        # ========================================================
         # validate stage
+
+        validators = contract_ins.functions.get_validator(round).call()
+
+        # choose to be validator this round
+        if id in validators:
+            global_gen, global_dis = contract_ins.functions.fetch_global_model(round).call()
+            global_gen = client.get_json(global_gen)
+            global_dis = client.get_json(global_dis)
+
+            # load global model weight
+            gen_weight = generator.state_dict()
+            dis_weight = discriminator.state_dict()
+
+            for k, v in gen_weight.items():
+                gen_weight[k] = torch.FloatTensor(global_gen[k])
+            
+            for k, v in dis_weight.items():
+                dis_weight[k] = torch.FloatTensor(global_dis[k])
+            
+            generator.load_state_dict(gen_weight)
+            discriminator.load_state_dict(dis_weight)
+
+            generator.to(device)
+            discriminator.to(device)
+
+            # run through training set once
+            print("Run validation process")
+            generator.eval()
+            discriminator.eval()
+            for i, (img, _) in enumerate(tqdm(dataloader)):
+                with torch.no_grad():
+                    # calculate discriminator loss
+                    b_size = img.size(0)
+                    real_cpu = img.to(device)
+                    label = torch.full((b_size,), 1., dtype=torch.float, device=device)
+                    output = discriminator(real_cpu).view(-1)
+                    errD = criterion(output, label)
+                    errD_real = output.mean().item()
+
+                    noise = torch.randn(b_size, laten_dim, 1, 1, device=device)
+                    fake = generator(noise)
+                    label.fill_(0.)
+                    output = discriminator(fake).view(-1)
+                    errD = criterion(output, label)
+                    errD_fake = errD.mean().item()
+                    errD = (errD_fake + errD_real) / 2
+
+                    # calculate generator loss
+                    label.fill(1.)
+                    output = discriminator(fake).view(-1)
+                    errG = criterion(output, label)
+                    errG = errG.mean().item()
+
+            
+            accept = 1
+
+            # vote
+            contract_ins.functions.vote(accept, group_id, round, count).transact()
+            
+        
+        # wait for validation complete
+        validation_complete = False
+        global_accept = False
+        while not validation_complete:
+            for log in globalA_filter.get_new_entries():
+                res = log[0]['args']
+                if res['round'] == round:
+                    global_accept = True
+                    validation_complete = True
+                
+            for log in globalR_filter.get_new_entries():
+                res = log[0]['args']
+                if res['round'] == round:
+                    validation_complete = True
+                
 
 
 

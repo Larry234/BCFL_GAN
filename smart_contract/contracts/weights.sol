@@ -28,7 +28,7 @@ contract NetworkWeights {
     }
     
     // events
-    event allModel_uploaded();
+    event allModel_uploaded(uint round);
     event aggregation_complete(uint round, uint group_id);
     event global_accept(uint round, uint group);
     event global_reject(uint round, uint group);
@@ -87,7 +87,7 @@ contract NetworkWeights {
         // check if all clients upload their model
         if (gen_models[round].length == groups[group_id].member_count && dis_models[round].length == groups[group_id].member_count) 
         {
-            emit allModel_uploaded();
+            emit allModel_uploaded(round);
         }
 
     }
@@ -101,7 +101,7 @@ contract NetworkWeights {
         // check if all clients upload their model
         if (gen_models[round].length == groups[group_id].member_count && dis_models[round].length == groups[group_id].member_count) 
         {
-            emit allModel_uploaded();
+            emit allModel_uploaded(round);
         }
 
     }
@@ -217,7 +217,7 @@ contract NetworkWeights {
 
     // ============================================================================
     // utility functions for debugging
-    
+
     function get_genCount(uint round) public view returns (uint) {
         return gen_models[round].length;
     }
