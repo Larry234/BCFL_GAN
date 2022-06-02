@@ -1,0 +1,1 @@
+python DogFaceNet_Client_sync.py --group 3 --device 1

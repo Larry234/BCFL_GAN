@@ -35,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch-size", type=int, default=256)
 
     args = parser.parse_args()
+    print(args)
     group_id = args.group
     batch_size = args.batch_size
     laten_dim = args.laten_dim
@@ -42,6 +43,9 @@ if __name__ == '__main__':
     rounds = args.rounds
     epochs = args.epochs
     pool_interval = 3
+    seed = 999
+    random.seed(seed)
+    torch.manual_seed(seed)
 
     # initialize stage
 
@@ -77,6 +81,7 @@ if __name__ == '__main__':
 
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=2)
 
+    print(len(dataloader), len(dataloader.dataset))
 
     # define model
     generator = Generator(laten_dim=laten_dim)
@@ -108,7 +113,7 @@ if __name__ == '__main__':
     else: # join group
         contract_ins.functions.join_group(args.group).transact()
         id = contract_ins.functions.get_memberID(group_id).call()
-        print(f"Join group{group_id}, member id = {id}")
+        print(f"Join group {group_id}, member id = {id}")
 
             
     # ============================================================
