@@ -9,9 +9,8 @@ contract NetworkWeights {
     mapping(uint => uint[]) votes;
     mapping(uint => uint[]) validators;
 
-    int group_counts;
-
-    uint[] group_ids;
+    uint[][] modelG_count;
+    uint[][] modelD_count;
     string[] global_genModels;
     string[] global_disModels;
 
@@ -33,18 +32,12 @@ contract NetworkWeights {
     event global_accept(uint round, uint group);
     event global_reject(uint round, uint group);
 
-    constructor() {
-        group_counts = 0;
-    }
-
     function init_group(uint MaxRegistry, uint group_id) public {
 
         address[] memory members = new address[](MaxRegistry);
         members[0] = msg.sender;
         Group memory initial_group = Group(1, 0, members);
         groups[group_id] = initial_group;
-        group_ids.push(group_id);
-        group_counts++;
     }
 
     function join_group(uint group_id) public {
@@ -83,7 +76,8 @@ contract NetworkWeights {
 
     function upload_genModel(string memory hs, uint round, uint group_id) public {
 
-        require(gen_models[round].length < groups[group_id].member_count, "too discriminator models uploaded!");
+        require(modelG_count[group_id][round] < groups[group_id].member_count, "too discriminator models uploaded!");
+        modelG_count[group_id][round]++;
         Item memory item = Item(msg.sender, hs);
         gen_models[round].push(item);
 
@@ -97,7 +91,8 @@ contract NetworkWeights {
 
     function upload_disModel(string memory hs, uint round, uint group_id) public {
 
-        require(dis_models[round].length < groups[group_id].member_count, "too discriminator models uploaded!");
+        require(modelD_count[group_id][round] < groups[group_id].member_count, "too discriminator models uploaded!");
+        modelD_count[group_id][round]++;
         Item memory item = Item(msg.sender, hs);
         dis_models[round].push(item);
 
