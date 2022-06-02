@@ -185,7 +185,7 @@ if __name__ == '__main__':
                 optimizerG.step()
 
                 gen_loss += errG.item()
-                dis_loss += errD.item()
+                dis_loss = dis_loss + errD_fake.item() + errD_real.item()
 
                 # save the best result
                 if errG.item() < best_g:
