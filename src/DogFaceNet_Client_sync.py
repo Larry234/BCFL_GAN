@@ -1,3 +1,4 @@
+from numpy import block
 import torch
 import torch.nn as nn
 import torchvision
@@ -9,6 +10,7 @@ import json
 import ipfshttpclient
 
 import argparse
+import ast
 import random
 import glob
 from tqdm import tqdm
@@ -48,7 +50,8 @@ if __name__ == '__main__':
 
     # Configure web3
     web_3 = web3.Web3(web3.HTTPProvider(GETH_URL))
-    web_3.eth.defaultAccount = web_3.eth.accounts[0]
+    print("Connected to block chain?", web_3.isConnected())
+    web_3.eth.defaultAccount = web_3.eth.accounts[0] # authorize account to create transactions
 
     # connect with contract
     address = web_3.toChecksumAddress(CONTRACT_ADDRESS)
@@ -95,19 +98,22 @@ if __name__ == '__main__':
 
     # ==========================================================
     # Grouping stage
-
+    print("==========================Grouping stage==========================")
     # create group or join group
     if args.creator: # create group
-        id = create_group(contract_ins, args.regisrty, args.group)
+        id = contract_ins.functions.init_group(args.regisrty, args.group).transact()
+        print(f"Create group{group_id}, member id = {id}")
     
     else: # join group
-        id = join_group(contract_ins, args.group)
+        id = contract_ins.functions.join_group(args.group).transact()
+        print(f"Join group{group_id}, member id = {id}")
 
             
     # ============================================================
     # Training stage
+    print("==========================Training stage==========================")
     for round in range(1, rounds + 1):
-        print(f'============================== round {round} ==============================')
+        print(f'training round {round}')
         best_g = 100
         best_d = 100
 
@@ -191,6 +197,7 @@ if __name__ == '__main__':
 
         # upload model
         # save model state_dict to json format
+        print("uploading model")
         gen = dict()
         dis = dict()
 
@@ -217,22 +224,30 @@ if __name__ == '__main__':
                     upload_finish = True
                 time.sleep(pool_interval)
         
-        # =========================================================
+        # ===========================================================================
         # Aggregate stage
+        print("==========================Aggregation stage==========================")
         aggreator_id = contract_ins.functions.get_aggreator(group_id).call()
         total = contract_ins.functions.get_member_count(group_id).call()
         count = int(total / 2)
-        model_list = list()
+        aggregate = False
 
         # this client is the chosen aggreator
-        if aggreator_id == id: 
+        if aggreator_id == id:
+            print("Do aggregation")
+            aggregate = True
             models_hs = contract_ins.functions.fetch_model(round, group_id).call()
 
             # fetch files from IPFS
+            model_nums = 0
+            global_res_dict = dict()
             for hs in models_hs:
-                client.cat(hs)
+                model_nums += 1
+                data = load_model(client, hs)
+                merge_dict(data, global_res_dict)
 
-            # take average of model weights
+            for k, v in global_res_dict.items():
+                global_res_dict[k] = global_res_dict[k] / model_nums
 
             # generate random id for validation
             val_id = random.sample(range(total), count)
@@ -240,11 +255,11 @@ if __name__ == '__main__':
 
 
         # wait for aggregation complete
-        else:   
+        else:  
+            print("Wait for aggregation complete...")
             aggregation_complete = False
 
             # wait for aggregation complete
-            print("Wait for aggregation complete...")
             while not aggregation_complete:
                 for log in aggregate_filter.get_new_entries():
                     res = log[0]['args']
@@ -253,35 +268,42 @@ if __name__ == '__main__':
 
         # ========================================================
         # validate stage
-
+        print("==========================Validation stage==========================")
         validators = contract_ins.functions.get_validator(round).call()
-
+        valid = False
         # choose to be validator this round
         if id in validators:
+            print("Run validation process")
+            valid = True
             global_gen, global_dis = contract_ins.functions.fetch_global_model(round).call()
-            global_gen = client.get_json(global_gen)
-            global_dis = client.get_json(global_dis)
+            global_gen = client.cat(global_gen)
+            global_dis = client.cat(global_dis)
 
             # load global model weight
             gen_weight = generator.state_dict()
             dis_weight = discriminator.state_dict()
+            
+            global_genW = dict()
+            global_disW = dict()
 
             for k, v in gen_weight.items():
-                gen_weight[k] = torch.FloatTensor(global_gen[k])
+                global_genW[k] = torch.FloatTensor(global_gen[k])
             
             for k, v in dis_weight.items():
-                dis_weight[k] = torch.FloatTensor(global_dis[k])
+                global_disW[k] = torch.FloatTensor(global_dis[k])
             
-            generator.load_state_dict(gen_weight)
-            discriminator.load_state_dict(dis_weight)
+            generator.load_state_dict(global_genW)
+            discriminator.load_state_dict(global_disW)
 
             generator.to(device)
             discriminator.to(device)
 
             # run through training set once
-            print("Run validation process")
             generator.eval()
             discriminator.eval()
+            global_errG = 100
+            global_errD = 100
+
             for i, (img, _) in enumerate(tqdm(dataloader)):
                 with torch.no_grad():
                     # calculate discriminator loss
@@ -290,26 +312,33 @@ if __name__ == '__main__':
                     label = torch.full((b_size,), 1., dtype=torch.float, device=device)
                     output = discriminator(real_cpu).view(-1)
                     errD = criterion(output, label)
-                    errD_real = output.mean().item()
+                    errD_real = errD.item()
 
                     noise = torch.randn(b_size, laten_dim, 1, 1, device=device)
                     fake = generator(noise)
                     label.fill_(0.)
                     output = discriminator(fake).view(-1)
                     errD = criterion(output, label)
-                    errD_fake = errD.mean().item()
-                    errD = (errD_fake + errD_real) / 2
+                    errD_fake = errD.item()
+                    errD = errD_fake.item() + errD_real.item()
 
                     # calculate generator loss
                     label.fill(1.)
                     output = discriminator(fake).view(-1)
                     errG = criterion(output, label)
-                    errG = errG.mean().item()
+                    errG = errG.item()
 
-            
-            accept = 1
+                    global_errG = errG if errG < global_errG else global_errG
+                    global_errD = errD if errD < global_errD else global_errD
 
-            # vote
+            # calculate performance of global model
+            if abs(global_errD - best_d) <= 1 and abs(global_errG - best_g) <= 1:
+                accept = 1
+
+            else:
+                accept = 0
+
+            # vote according to validation result
             contract_ins.functions.vote(accept, group_id, round, count).transact()
             
         
@@ -327,8 +356,18 @@ if __name__ == '__main__':
                 res = log[0]['args']
                 if res['round'] == round:
                     validation_complete = True
+            time.sleep(pool_interval)
                 
+        # reload model from training result instead of global model
+        if not global_accept and valid:
+            generator.load_state_dict(gen_weight)
+            discriminator.load_state_dict(dis_weight)
 
+        # load global model
+        if global_accept and not valid:
+            global_gen, global_dis = contract_ins.functions.fetch_global_model(round)
+            generator.load_state_dict(load_model(client, global_gen))
+            discriminator.load_state_dict(load_model(client, global_dis))
 
 
 
