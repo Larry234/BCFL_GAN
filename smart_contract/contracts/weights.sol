@@ -37,7 +37,7 @@ contract NetworkWeights {
         group_counts = 0;
     }
 
-    function init_group(uint MaxRegistry, uint group_id) public returns(uint) {
+    function init_group(uint MaxRegistry, uint group_id) public {
 
         address[] memory members = new address[](MaxRegistry);
         members[0] = msg.sender;
@@ -45,15 +45,13 @@ contract NetworkWeights {
         groups[group_id] = initial_group;
         group_ids.push(group_id);
         group_counts++;
-        return groups[group_id].member_count - 1; // return id in the group to client 
     }
 
-    function join_group(uint group_id) public returns(uint){
+    function join_group(uint group_id) public {
 
         groups[group_id].member_count += 1;
         groups[group_id].members.push(msg.sender); // add new member into address array
 
-        return groups[group_id].member_count - 1;
     }
 
     function leave_group(uint group_id) public {
@@ -76,6 +74,11 @@ contract NetworkWeights {
         }
 
         groups[group_id].member_count --;
+    }
+
+    function get_memberID(uint group_id) public view returns(uint){
+
+        return groups[group_id].member_count - 1;
     }
 
     function upload_genModel(string memory hs, uint round, uint group_id) public {

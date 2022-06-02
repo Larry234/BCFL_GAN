@@ -1,0 +1,1 @@
+python DogFaceNet_Client_sync.py --creator --group 0 --registry 4 --device 0

@@ -55,22 +55,22 @@ if __name__ == '__main__':
 
     # connect with contract
     address = web_3.toChecksumAddress(CONTRACT_ADDRESS)
-    contract_ins = web_3.eth.contract(address=address, abi=ABI) # create contract instance
+    contract_ins = web_3.eth.contract(address=address, abi=json.loads(ABI)) # create contract instance
 
     # define event filters
-    aggregate_filter = contract_ins.events.aggregater_selected.createFilter(fromBlock=0, toBlock='latest')
+    aggregate_filter = contract_ins.events.aggregation_complete.createFilter(fromBlock=0, toBlock='latest')
     model_filter = contract_ins.events.allModel_uploaded.createFilter(fromBlock=0, toBlock='latest')
     globalA_filter = contract_ins.events.global_accept.createFilter(fromBlock=0, toBlock='latest')
     globalR_filter = contract_ins.events.global_reject.createFilter(fromBlock=0, toBlock='latest')
 
     device = torch.device("cuda:{}".format(args.device) if torch.cuda.is_available() else "cpu")
 
+    print(f"Using device {device}")
     # load dataset
-    image_size = 64
     dataset = dset.ImageFolder(root = DATAROOT,
                                 transform=transforms.Compose([
-                                transforms.Resize(image_size),
-                                transforms.CenterCrop(image_size),
+                                transforms.Resize(img_size),
+                                transforms.CenterCrop(img_size),
                                 transforms.ToTensor(),
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                 ]))
@@ -101,11 +101,13 @@ if __name__ == '__main__':
     print("==========================Grouping stage==========================")
     # create group or join group
     if args.creator: # create group
-        id = contract_ins.functions.init_group(args.regisrty, args.group).transact()
-        print(f"Create group{group_id}, member id = {id}")
+        contract_ins.functions.init_group(args.registry, args.group).transact()
+        id = contract_ins.functions.get_memberID(group_id).call()
+        print(f"Create group {group_id}, member id = {id}")
     
     else: # join group
-        id = contract_ins.functions.join_group(args.group).transact()
+        contract_ins.functions.join_group(args.group).transact()
+        id = contract_ins.functions.get_memberID(group_id).call()
         print(f"Join group{group_id}, member id = {id}")
 
             
