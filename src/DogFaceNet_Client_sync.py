@@ -28,7 +28,7 @@ if __name__ == '__main__':
     parser.add_argument("--registry", help="number of registries", type=int)
     parser.add_argument("--rounds", help="number of training rounds", type=int, default=10)
     parser.add_argument("--epochs", help="epochs in each round", type=int, default=5)
-    parser.add_argument("--lr", help="learning rate", type=float, default=1e-3)
+    parser.add_argument("--lr", help="learning rate", type=float, default=0.0002)
     parser.add_argument("--device", help="gpu device id")
     parser.add_argument("--img-size", help="generate image size", type=int, default=64)
     parser.add_argument("--laten-dim", help="dimension of noise", type=int, default=100)
