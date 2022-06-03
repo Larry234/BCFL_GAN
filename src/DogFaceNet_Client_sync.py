@@ -6,6 +6,12 @@ import torchvision
 from torchvision import transforms
 import torchvision.datasets as dset
 
+import matplotlib.pyplot as plt
+import numpy as np
+from IPython.display import HTML
+import torchvision.utils as vutils
+import matplotlib.animation as animation
+
 import web3
 import json
 import ipfshttpclient
@@ -48,6 +54,8 @@ if __name__ == '__main__':
     seed = 999
     random.seed(seed)
     torch.manual_seed(seed)
+    G_losses = []
+    D_losses = []
 
     # initialize stage
 
@@ -112,8 +120,9 @@ if __name__ == '__main__':
     
     else: # join group
         contract_ins.functions.join_group(args.group).transact()
-        time.sleep(5)
-        id = contract_ins.functions.get_memberID(group_id).call()
+        # time.sleep(5)
+        # id = contract_ins.functions.get_memberID(group_id).call()
+        id = 1
         print(f"Join group {group_id}, member id = {id}")
 
             
@@ -124,7 +133,10 @@ if __name__ == '__main__':
     # create checkpoint folder
     if not os.path.exists('runs'):
         os.mkdir('runs')
-    
+
+
+    iters = 0 
+    img_list= []
     for round in range(1, rounds + 1):
 
         if not os.path.exists(os.path.join('runs', f'round{round}')):
@@ -211,6 +223,12 @@ if __name__ == '__main__':
                     best_d = errD.item()
                     torch.save(discriminator.state_dict(), os.path.join('runs', f'round{round}', 'bestD.pt'))
 
+                G_losses.append(errG.item())
+                D_losses.append(errD.item())
+                if (iters % 500 == 0) or ((epoch == round) and (i == len(dataloader)-1)):
+                    with torch.no_grad():
+                        fake = generator(noise).detach().cpu()
+                    img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
             # log training result
             print("epoch[{}/{}]:\nLoss_D: {:.4f} Loss_G: {:.4f}".format(epoch, epochs, dis_loss/len(dataloader), gen_loss/len(dataloader)))
 
@@ -283,7 +301,7 @@ if __name__ == '__main__':
         while not aggregation_complete:
             for log in aggregate_filter.get_new_entries():
                 res = log['args']
-                if res['round'] == round: # aggregation of this round has completed
+                if res['round'] == round and res['group_id'] == group_id: # aggregation of this round has completed
                     aggregation_complete = True
             time.sleep(pool_interval)
 
@@ -296,25 +314,12 @@ if __name__ == '__main__':
         if id in validators:
             print("Run validation process")
             valid = True
-            global_gen, global_dis = contract_ins.functions.fetch_global_model(round).call()
-            global_gen = client.cat(global_gen)
-            global_dis = client.cat(global_dis)
-
-            # load global model weight
-            gen_weight = torch.load(os.path.join('runs', f'round{round}', 'bestG.pt'), map_location=device)
-            dis_weight = torch.load(os.path.join('runs', f'round{round}', 'bestD.pt'), map_location=device)
+            global_gen, global_dis = contract_ins.functions.fetch_global_model(round, group_id).call()
+            global_gen = load_model(client, global_gen)
+            global_dis = load_model(client, global_dis)
             
-            global_genW = dict()
-            global_disW = dict()
-
-            for k, v in gen_weight.items():
-                global_genW[k] = torch.FloatTensor(global_gen[k])
-            
-            for k, v in dis_weight.items():
-                global_disW[k] = torch.FloatTensor(global_dis[k])
-            
-            generator.load_state_dict(global_genW)
-            discriminator.load_state_dict(global_disW)
+            generator.load_state_dict(global_gen)
+            discriminator.load_state_dict(global_dis)
 
             generator.to(device)
             discriminator.to(device)
@@ -341,10 +346,10 @@ if __name__ == '__main__':
                     output = discriminator(fake).view(-1)
                     errD = criterion(output, label)
                     errD_fake = errD.item()
-                    errD = errD_fake.item() + errD_real.item()
+                    errD = errD_fake + errD_real
 
                     # calculate generator loss
-                    label.fill(1.)
+                    label.fill_(1.)
                     output = discriminator(fake).view(-1)
                     errG = criterion(output, label)
                     errG = errG.item()
@@ -364,6 +369,7 @@ if __name__ == '__main__':
             
         
         # wait for validation complete
+        print("Wait for validation...")
         validation_complete = False
         global_accept = False
         while not validation_complete:
@@ -381,14 +387,27 @@ if __name__ == '__main__':
                 
         # reload model from best checkpoint
         if not global_accept:
+            # load global model weight
+            print("reject global model, continue training with local weight")
+            gen_weight = torch.load(os.path.join('runs', f'round{round}', 'bestG.pt'), map_location=device)
+            dis_weight = torch.load(os.path.join('runs', f'round{round}', 'bestD.pt'), map_location=device)
             generator.load_state_dict(gen_weight)
             discriminator.load_state_dict(dis_weight)
 
         # load global model
         if global_accept and not valid:
-            global_gen, global_dis = contract_ins.functions.fetch_global_model(round)
+            print("global accept, continue training with global model")
+            global_gen, global_dis = contract_ins.functions.fetch_global_model(round, group_id)
             generator.load_state_dict(load_model(client, global_gen))
             discriminator.load_state_dict(load_model(client, global_dis))
+
+
+fig = plt.figure(figsize=(8,8))
+plt.axis("off")
+ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in img_list]
+ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
+
+HTML(ani.to_jshtml())
 
 
 

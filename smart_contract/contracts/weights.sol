@@ -6,13 +6,14 @@ contract NetworkWeights {
     mapping(uint => Item[]) public gen_models;
     mapping(uint => Item[]) public dis_models;
     mapping(uint => Group) groups;
-    mapping(uint => uint[]) votes;
     mapping(uint => uint[]) validators;
 
     uint[50][8] modelG_count;
     uint[50][8] modelD_count;
     string[50][8] global_genModels;
     string[50][8] global_disModels;
+    uint[50][8] vote_result;
+    uint[50][8] vote_count;
 
     // data structures
     struct Item {
@@ -144,27 +145,20 @@ contract NetworkWeights {
 
     function vote(uint res, uint group_id, uint round, uint voters) public {
 
-        votes[round].push(res);
+        vote_result[group_id][round] += res;
+        vote_count[group_id][round] += 1;
 
-        uint accepts = 0;
+        if (vote_count[group_id][round] == voters) {
 
-        // every validators have participated in the voting of this round
-        if (votes[round].length == voters) {
-
-            for (uint i = 0; i < votes[round].length; i++) {
-                if (votes[round][i] == 1) accepts++; // client accept this global model
-            }
-            
-            // Global model is accepted
-            if (accepts >= (voters / 2)) {
+            if (vote_result[group_id][round] >= (voters / 2)) {
                 emit global_accept(round, group_id);
             }
 
-            // Global model is rejected
             else {
                 emit global_reject(round, group_id);
             }
         }
+        
     }
 
     function choose_validator(uint round, uint[] memory vals) public {
