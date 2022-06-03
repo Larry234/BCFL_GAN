@@ -1,1 +1,1 @@
-python DogFaceNet_Client_sync.py --group 0 --device 1 --dataroot /home/barry/BCFL_GAN/images
+python DogFaceNet_Client_sync.py --creator --group 1 --device 1 --epochs 1 --dataroot /home/barry/BCFL_GAN/images2

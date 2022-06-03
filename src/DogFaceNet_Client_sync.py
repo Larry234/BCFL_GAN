@@ -259,8 +259,8 @@ if __name__ == '__main__':
             G_hs, D_hs = contract_ins.functions.fetch_model(round, group_id).call()
 
             # fetch files from IPFS and do Federated Average
-            global_G = FedAvg(G_hs)
-            global_D = FedAvg(D_hs)
+            global_G = FedAvg(client, G_hs)
+            global_D = FedAvg(client, D_hs)
 
             # upload global model to IPFS
             GG_hs = client.add_json(global_G)
@@ -268,25 +268,24 @@ if __name__ == '__main__':
 
             print(f'Global generator hash :{GG_hs}\nGlobal Discriminator hash: {GD_hs}')
 
-            contract_ins.functions.upload_global_genModel(GG_hs, round, group_id)
-            contract_ins.functions.upload_global_disModel(GD_hs, round, group_id)
-            
+            contract_ins.functions.upload_globalModel(GG_hs, GD_hs, round, group_id).transact()
+
             # generate random id for validation
             val_id = random.sample(range(total), count)
             contract_ins.functions.choose_validator(round, val_id).transact()
 
 
         # wait for aggregation complete
-        else:  
-            print("Wait for aggregation complete...")
-            aggregation_complete = False
+        print("Wait for aggregation complete...")
+        aggregation_complete = False
 
-            # wait for aggregation complete
-            while not aggregation_complete:
-                for log in aggregate_filter.get_new_entries():
-                    res = log['args']
-                    if res['round'] == round: # aggregation of this round has completed
-                        aggregation_complete = True
+        # wait for aggregation complete
+        while not aggregation_complete:
+            for log in aggregate_filter.get_new_entries():
+                res = log['args']
+                if res['round'] == round: # aggregation of this round has completed
+                    aggregation_complete = True
+            time.sleep(pool_interval)
 
         # ========================================================
         # validate stage

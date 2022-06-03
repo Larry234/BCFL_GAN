@@ -11,8 +11,8 @@ contract NetworkWeights {
 
     uint[50][8] modelG_count;
     uint[50][8] modelD_count;
-    string[] global_genModels;
-    string[] global_disModels;
+    string[50][8] global_genModels;
+    string[50][8] global_disModels;
 
     // data structures
     struct Item {
@@ -103,12 +103,12 @@ contract NetworkWeights {
         require(groups[group_id].members[selected] == msg.sender, "You are not the selected aggregater this round!"); 
 
         // global model cannot be uploaded more than once
-        require(keccak256(abi.encodePacked(global_genModels[round])) == keccak256(abi.encodePacked(empty)));
-        global_genModels[round] = gen; // upload global model
+        require(keccak256(abi.encodePacked(global_genModels[group_id][round])) == keccak256(abi.encodePacked(empty)), "Cannot upload global model more than once!");
+        global_genModels[group_id][round] = gen; // upload global model
 
         // global model cannot be uploaded more than once
-        require(keccak256(abi.encodePacked(global_disModels[round])) == keccak256(abi.encodePacked(empty)));
-        global_disModels[round] = dis; // upload global model
+        require(keccak256(abi.encodePacked(global_disModels[group_id][round])) == keccak256(abi.encodePacked(empty)), "Cannot upload global model more than once!");
+        global_disModels[group_id][round] = dis; // upload global model
 
         // update aggregater for next round
         groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
@@ -132,9 +132,9 @@ contract NetworkWeights {
         return (gen_ret, dis_ret);
     }
 
-    function fetch_global_model(uint round) public view returns (string memory gen, string memory dis) {
+    function fetch_global_model(uint round, uint group_id) public view returns (string memory gen, string memory dis) {
 
-        return (global_genModels[round], global_disModels[round]);
+        return (global_genModels[group_id][round], global_disModels[group_id][round]);
     }
 
     function get_aggregater(uint group_id) public view returns(uint) {

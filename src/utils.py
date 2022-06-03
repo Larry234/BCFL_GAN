@@ -1,4 +1,5 @@
 import ast
+from math import gamma
 import web3
 import time
 import torch
@@ -19,6 +20,10 @@ def load_model(client, hs, ToTensor=True):
     # returns global model state dict
     dict_str = client.cat(hs).decode("UTF-8")
     global_model = ast.literal_eval(dict_str)
+    delete_keys = [i for i in global_model.keys() if "num_batches_tracked" in i]
+    for d in delete_keys:
+        del global_model[d]
+    print("Successfully decode object from IPFS!")
     if ToTensor:
         res = {k: torch.FloatTensor(v) for k, v in global_model.items()}
     return res
@@ -30,18 +35,18 @@ def merge_dict(x,y):
         else:
             y[k] = v
 
-def FedAvg(hs):
+def FedAvg(client, hs):
 
     nums = 0
     global_res_dict = dict()
     for h in hs:
         nums += 1
-        data = load_model(h)
+        data = load_model(client, h)
         merge_dict(data, global_res_dict)
 
     for k, v in global_res_dict.items():
         global_res_dict[k] = v / nums
-        global_res_dict[k] = global_res_dict.tolist()
+        global_res_dict[k] = global_res_dict[k].tolist()
     
     return global_res_dict
 
