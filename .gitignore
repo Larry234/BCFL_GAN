@@ -6,3 +6,4 @@ Images
 bin/*
 lib/*
 src/runs/*
+src/__pycache__/*
