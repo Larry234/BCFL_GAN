@@ -104,7 +104,7 @@ contract NetworkWeights {
 
     }
 
-    function upload_global_genModel(string memory hs, uint round, uint group_id) public {
+    function upload_globalModel(string memory gen, string memory dis, uint round, uint group_id) public {
 
         uint selected = groups[group_id].aggregater_id;
         string memory empty = "";
@@ -114,41 +114,18 @@ contract NetworkWeights {
 
         // global model cannot be uploaded more than once
         require(keccak256(abi.encodePacked(global_genModels[round])) == keccak256(abi.encodePacked(empty)));
-        global_genModels[round] = hs; // upload global model
-
-        // update aggregater for next round
-        groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
-
-        if (keccak256(abi.encodePacked(global_disModels[round])) != keccak256(abi.encodePacked(empty)))
-        {
-            emit aggregation_complete(round, group_id);
-        }
-        
-    }
-
-    function upload_global_disModel(string memory hs, uint round, uint group_id) public {
-
-        uint selected = groups[group_id].aggregater_id;
-        string memory empty = "";
-
-        // only chosen aggregater can upload global model
-        require(groups[group_id].members[selected] == msg.sender, "You are not the selected aggregater this round!");
+        global_genModels[round] = gen; // upload global model
 
         // global model cannot be uploaded more than once
         require(keccak256(abi.encodePacked(global_disModels[round])) == keccak256(abi.encodePacked(empty)));
-
-        global_disModels[round] = hs; // upload global model
+        global_disModels[round] = dis; // upload global model
 
         // update aggregater for next round
         groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
 
-        if (keccak256(abi.encodePacked(global_genModels[round])) != keccak256(abi.encodePacked(empty)))
-        {
-            emit aggregation_complete(round, group_id);
-        }
+        emit aggregation_complete(round, group_id);
         
     }
-
 
     function fetch_model(uint round, uint group_id) public view returns(string [] memory m1, string [] memory m2) {
 

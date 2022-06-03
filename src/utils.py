@@ -30,6 +30,21 @@ def merge_dict(x,y):
         else:
             y[k] = v
 
+def FedAvg(hs):
+
+    nums = 0
+    global_res_dict = dict()
+    for h in hs:
+        nums += 1
+        data = load_model(h)
+        merge_dict(data, global_res_dict)
+
+    for k, v in global_res_dict.items():
+        global_res_dict[k] = v / nums
+        global_res_dict[k] = global_res_dict.tolist()
+    
+    return global_res_dict
+
 
 
 

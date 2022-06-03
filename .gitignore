@@ -5,3 +5,4 @@ Images
 *venv.cfg
 bin/*
 lib/*
+src/runs/*

@@ -14,6 +14,7 @@ import argparse
 import ast
 import random
 import glob
+import os
 from tqdm import tqdm
 
 from config import *
@@ -73,7 +74,7 @@ if __name__ == '__main__':
     print(f"Using device {device}")
     # load dataset
     dataset = dset.ImageFolder(root = args.dataroot,
-                                transform=transforms.Compose([
+                               transform=transforms.Compose([
                                 transforms.Resize(img_size),
                                 transforms.CenterCrop(img_size),
                                 transforms.ToTensor(),
@@ -81,8 +82,6 @@ if __name__ == '__main__':
                                 ]))
 
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=2)
-
-    print(len(dataloader), len(dataloader.dataset))
 
     # define model
     generator = Generator(laten_dim=laten_dim)
@@ -108,13 +107,12 @@ if __name__ == '__main__':
     # create group or join group
     if args.creator: # create group
         contract_ins.functions.init_group(args.group).transact()
-        time.sleep(20)
-        id = contract_ins.functions.get_memberID(group_id).call()
+        id = 0
         print(f"Create group {group_id}, member id = {id}")
     
     else: # join group
         contract_ins.functions.join_group(args.group).transact()
-        time.sleep(20)
+        time.sleep(5)
         id = contract_ins.functions.get_memberID(group_id).call()
         print(f"Join group {group_id}, member id = {id}")
 
@@ -122,7 +120,16 @@ if __name__ == '__main__':
     # ============================================================
     # Training stage
     print("==========================Training stage==========================")
+
+    # create checkpoint folder
+    if not os.path.exists('runs'):
+        os.mkdir('runs')
+    
     for round in range(1, rounds + 1):
+
+        if not os.path.exists(os.path.join('runs', f'round{round}')):
+            os.mkdir(os.path.join('runs', f'round{round}'))
+        
         print(f'training round {round}')
         best_g = 100
         best_d = 100
@@ -198,9 +205,11 @@ if __name__ == '__main__':
                 # save the best result
                 if errG.item() < best_g:
                     best_g = errG.item()
+                    torch.save(generator.state_dict(), os.path.join('runs', f'round{round}', 'bestG.pt'))
                 
                 if (errD.item() < best_d):
                     best_d = errD.item()
+                    torch.save(discriminator.state_dict(), os.path.join('runs', f'round{round}', 'bestD.pt'))
 
             # log training result
             print("epoch[{}/{}]:\nLoss_D: {:.4f} Loss_G: {:.4f}".format(epoch, epochs, dis_loss/len(dataloader), gen_loss/len(dataloader)))
@@ -220,6 +229,8 @@ if __name__ == '__main__':
         gen_hs = client.add_json(gen)
         dis_hs = client.add_json(dis)
 
+        print(f'Generator IPFS hash: {gen_hs}\nDiscriminator IPFS hash: {dis_hs}')
+
         contract_ins.functions.upload_genModel(gen_hs, round, group_id).transact()
         contract_ins.functions.upload_disModel(dis_hs, round, group_id).transact()
 
@@ -237,7 +248,7 @@ if __name__ == '__main__':
         # ===========================================================================
         # Aggregate stage
         print("==========================Aggregation stage==========================")
-        aggreator_id = contract_ins.functions.get_aggrgator(group_id).call()
+        aggreator_id = contract_ins.functions.get_aggregater(group_id).call()
         total = contract_ins.functions.get_member_count(group_id).call()
         count = int(total / 2)
         aggregate = False
@@ -246,19 +257,21 @@ if __name__ == '__main__':
         if aggreator_id == id:
             print("Do aggregation")
             aggregate = True
-            models_hs = contract_ins.functions.fetch_model(round, group_id).call()
+            G_hs, D_hs = contract_ins.functions.fetch_model(round, group_id).call()
 
-            # fetch files from IPFS
-            model_nums = 0
-            global_res_dict = dict()
-            for hs in models_hs:
-                model_nums += 1
-                data = load_model(client, hs)
-                merge_dict(data, global_res_dict)
+            # fetch files from IPFS and do Federated Average
+            global_G = FedAvg(G_hs)
+            global_D = FedAvg(D_hs)
 
-            for k, v in global_res_dict.items():
-                global_res_dict[k] = global_res_dict[k] / model_nums
+            # upload global model to IPFS
+            GG_hs = client.add_json(global_G)
+            GD_hs = client.add_json(global_D)
 
+            print(f'Global generator hash :{GG_hs}\nGlobal Discriminator hash: {GD_hs}')
+
+            contract_ins.functions.upload_global_genModel(GG_hs, round, group_id)
+            contract_ins.functions.upload_global_disModel(GD_hs, round, group_id)
+            
             # generate random id for validation
             val_id = random.sample(range(total), count)
             contract_ins.functions.choose_validator(round, val_id).transact()
@@ -290,8 +303,8 @@ if __name__ == '__main__':
             global_dis = client.cat(global_dis)
 
             # load global model weight
-            gen_weight = generator.state_dict()
-            dis_weight = discriminator.state_dict()
+            gen_weight = torch.load(os.path.join('runs', f'round{round}', 'bestG.pt'), map_location=device)
+            dis_weight = torch.load(os.path.join('runs', f'round{round}', 'bestD.pt'), map_location=device)
             
             global_genW = dict()
             global_disW = dict()
@@ -368,8 +381,8 @@ if __name__ == '__main__':
                     validation_complete = True
             time.sleep(pool_interval)
                 
-        # reload model from training result instead of global model
-        if not global_accept and valid:
+        # reload model from best checkpoint
+        if not global_accept:
             generator.load_state_dict(gen_weight)
             discriminator.load_state_dict(dis_weight)
 
