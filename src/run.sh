@@ -1,1 +1,1 @@
-python DogFaceNet_Client_sync.py --group 1 --device 0  --epochs 2 --dataroot /home/barry/BCFL_GAN/after_4_bis
+python DogFaceNet_Client_sync.py --group 0 --device 0  --epochs 2 --dataroot /home/barry/BCFL_GAN/after_4_bis
