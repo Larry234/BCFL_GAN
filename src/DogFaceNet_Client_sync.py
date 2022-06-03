@@ -231,10 +231,9 @@ if __name__ == '__main__':
 
         print(f'Generator IPFS hash: {gen_hs}\nDiscriminator IPFS hash: {dis_hs}')
 
-        contract_ins.functions.upload_genModel(gen_hs, round, group_id).transact()
-        contract_ins.functions.upload_disModel(dis_hs, round, group_id).transact()
+        contract_ins.functions.upload_model(gen_hs, dis_hs, round, group_id).transact()
 
-        upload_finish = False    
+        upload_finish = False
 
         print("Wait for all clients upload their models...")
         # wait for all clients upload their model

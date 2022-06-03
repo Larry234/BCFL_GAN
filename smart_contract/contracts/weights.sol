@@ -74,27 +74,17 @@ contract NetworkWeights {
         return groups[group_id].member_count - 1;
     }
 
-    function upload_genModel(string memory hs, uint round, uint group_id) public {
+    function upload_model(string memory gen, string memory dis, uint round, uint group_id) public {
 
         require(modelG_count[group_id][round] < groups[group_id].member_count, "too generator models uploaded!");
         modelG_count[group_id][round] += 1;
-        Item memory item = Item(msg.sender, hs);
+        Item memory item = Item(msg.sender, gen);
         gen_models[round].push(item);
-
-        // check if all clients upload their model
-        if (modelD_count[group_id][round] == groups[group_id].member_count && modelG_count[group_id][round] == groups[group_id].member_count) 
-        {
-            emit allModel_uploaded(round, group_id);
-        }
-
-    }
-
-    function upload_disModel(string memory hs, uint round, uint group_id) public {
 
         require(modelD_count[group_id][round] < groups[group_id].member_count, "too discriminator models uploaded!");
         modelD_count[group_id][round] += 1;
-        Item memory item = Item(msg.sender, hs);
-        dis_models[round].push(item);
+        Item memory item1 = Item(msg.sender, dis);
+        dis_models[round].push(item1);
 
         // check if all clients upload their model
         if (modelD_count[group_id][round] == groups[group_id].member_count && modelG_count[group_id][round] == groups[group_id].member_count) 
