@@ -9,8 +9,8 @@ contract NetworkWeights {
     mapping(uint => uint[]) votes;
     mapping(uint => uint[]) validators;
 
-    uint[][] modelG_count;
-    uint[][] modelD_count;
+    uint[50][8] modelG_count;
+    uint[50][8] modelD_count;
     string[] global_genModels;
     string[] global_disModels;
 
@@ -27,16 +27,16 @@ contract NetworkWeights {
     }
     
     // events
-    event allModel_uploaded(uint round);
+    event allModel_uploaded(uint round, uint group_id);
     event aggregation_complete(uint round, uint group_id);
     event global_accept(uint round, uint group);
     event global_reject(uint round, uint group);
 
-    function init_group(uint MaxRegistry, uint group_id) public {
+    function init_group(uint group_id) public {
 
-        address[] memory members = new address[](MaxRegistry);
-        members[0] = msg.sender;
-        Group memory initial_group = Group(1, 0, members);
+        Group memory initial_group;
+        initial_group.aggregater_id = 0;
+        initial_group.member_count = 1;
         groups[group_id] = initial_group;
     }
 
@@ -76,15 +76,15 @@ contract NetworkWeights {
 
     function upload_genModel(string memory hs, uint round, uint group_id) public {
 
-        require(modelG_count[group_id][round] < groups[group_id].member_count, "too discriminator models uploaded!");
-        modelG_count[group_id][round]++;
+        require(modelG_count[group_id][round] < groups[group_id].member_count, "too generator models uploaded!");
+        modelG_count[group_id][round] += 1;
         Item memory item = Item(msg.sender, hs);
         gen_models[round].push(item);
 
         // check if all clients upload their model
-        if (gen_models[round].length == groups[group_id].member_count && dis_models[round].length == groups[group_id].member_count) 
+        if (modelD_count[group_id][round] == groups[group_id].member_count && modelG_count[group_id][round] == groups[group_id].member_count) 
         {
-            emit allModel_uploaded(round);
+            emit allModel_uploaded(round, group_id);
         }
 
     }
@@ -92,14 +92,14 @@ contract NetworkWeights {
     function upload_disModel(string memory hs, uint round, uint group_id) public {
 
         require(modelD_count[group_id][round] < groups[group_id].member_count, "too discriminator models uploaded!");
-        modelD_count[group_id][round]++;
+        modelD_count[group_id][round] += 1;
         Item memory item = Item(msg.sender, hs);
         dis_models[round].push(item);
 
         // check if all clients upload their model
-        if (gen_models[round].length == groups[group_id].member_count && dis_models[round].length == groups[group_id].member_count) 
+        if (modelD_count[group_id][round] == groups[group_id].member_count && modelG_count[group_id][round] == groups[group_id].member_count) 
         {
-            emit allModel_uploaded(round);
+            emit allModel_uploaded(round, group_id);
         }
 
     }
@@ -226,6 +226,14 @@ contract NetworkWeights {
 
     function get_member_count(uint group_id) public view returns (uint) {
         return groups[group_id].member_count;
+    }
+    
+    function get_G_count(uint group_id, uint round) public view returns (uint) {
+        return modelG_count[group_id][round];
+    }
+
+    function get_D_count(uint group_id, uint round) public view returns (uint) {
+        return modelD_count[group_id][round];
     }
 
 }

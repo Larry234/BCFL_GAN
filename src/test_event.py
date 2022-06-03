@@ -3,12 +3,12 @@ import json
 from config import *
 from utils import *
 
-web_3 = Web3(Web3.HTTPProvider(GETH_URL, request_kwargs={'verify': False}))
+w3 = Web3(Web3.HTTPProvider(GETH_URL))
 # print(web_3.isConnected())
 # connect with contract
-address = web_3.toChecksumAddress(CONTRACT_ADDRESS)
-contract_ins = web_3.eth.contract(address=address, abi=json.loads(ABI)) # create contract instance
-web_3.eth.defaultAccount = web_3.eth.accounts[0]
+address = w3.toChecksumAddress(CONTRACT_ADDRESS)
+contract_ins = w3.eth.contract(address=address, abi=json.loads(ABI)) # create contract instance
+w3.eth.defaultAccount = w3.eth.accounts[0]
 a = contract_ins.functions.get_aggregater(0).call()
 print(a)
 # training_filter = contract_ins.events.startTraining.createFilter(fromBlock=0, toBlock='latest')

@@ -221,8 +221,8 @@ if __name__ == '__main__':
         # wait for all clients upload their model
         while not upload_finish:
             for log in model_filter.get_new_entries():
-                res = log[0]['args']
-                if res['round'] == round:
+                res = log['args']
+                if res['round'] == round and res['group_id'] == group_id:
                     upload_finish = True
                 time.sleep(pool_interval)
         
@@ -264,7 +264,7 @@ if __name__ == '__main__':
             # wait for aggregation complete
             while not aggregation_complete:
                 for log in aggregate_filter.get_new_entries():
-                    res = log[0]['args']
+                    res = log['args']
                     if res['round'] == round: # aggregation of this round has completed
                         aggregation_complete = True
 
@@ -349,13 +349,13 @@ if __name__ == '__main__':
         global_accept = False
         while not validation_complete:
             for log in globalA_filter.get_new_entries():
-                res = log[0]['args']
+                res = log['args']
                 if res['round'] == round:
                     global_accept = True
                     validation_complete = True
                 
             for log in globalR_filter.get_new_entries():
-                res = log[0]['args']
+                res = log['args']
                 if res['round'] == round:
                     validation_complete = True
             time.sleep(pool_interval)
