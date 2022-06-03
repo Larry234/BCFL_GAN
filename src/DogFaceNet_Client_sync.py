@@ -285,7 +285,7 @@ if __name__ == '__main__':
             GD_hs = client.add_json(global_D)
 
             print(f'Global generator hash :{GG_hs}\nGlobal Discriminator hash: {GD_hs}')
-
+            print(f'group id: {group_id}, round: {round}')
             contract_ins.functions.upload_globalModel(GG_hs, GD_hs, round, group_id).transact()
 
             # generate random id for validation
@@ -397,7 +397,7 @@ if __name__ == '__main__':
         # load global model
         if global_accept and not valid:
             print("global accept, continue training with global model")
-            global_gen, global_dis = contract_ins.functions.fetch_global_model(round, group_id)
+            global_gen, global_dis = contract_ins.functions.fetch_global_model(round, group_id).call()
             generator.load_state_dict(load_model(client, global_gen))
             discriminator.load_state_dict(load_model(client, global_dis))
 

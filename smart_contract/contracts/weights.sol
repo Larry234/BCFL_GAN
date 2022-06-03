@@ -112,7 +112,10 @@ contract NetworkWeights {
         global_disModels[group_id][round] = dis; // upload global model
 
         // update aggregater for next round
-        groups[group_id].aggregater_id = (groups[group_id].aggregater_id + 1) % groups[group_id].member_count;
+        groups[group_id].aggregater_id += 1;
+        if (groups[group_id].aggregater_id >= groups[group_id].member_count) {
+            groups[group_id].aggregater_id -= groups[group_id].member_count;
+        }
 
         emit aggregation_complete(round, group_id);
         
@@ -197,4 +200,11 @@ contract NetworkWeights {
         return modelD_count[group_id][round];
     }
 
+    function get_G_model(uint group_id, uint round) public view returns (string memory){
+        return global_genModels[group_id][round];
+    }
+    
+    function get_D_model(uint group_id, uint round) public view returns (string memory){
+        return global_disModels[group_id][round];
+    }
 }
