@@ -1,3 +1,4 @@
+from turtle import st
 from numpy import block
 import torch
 import torch.nn as nn
@@ -25,7 +26,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--creator", help="Group creator", action="store_true")
     parser.add_argument("--group", help="ID of federated learning group", type=int)
-    parser.add_argument("--registry", help="number of registries", type=int)
+    parser.add_argument("--dataroot", help="location of dataset", type=str)
     parser.add_argument("--rounds", help="number of training rounds", type=int, default=10)
     parser.add_argument("--epochs", help="epochs in each round", type=int, default=5)
     parser.add_argument("--lr", help="learning rate", type=float, default=0.0002)
@@ -71,7 +72,7 @@ if __name__ == '__main__':
 
     print(f"Using device {device}")
     # load dataset
-    dataset = dset.ImageFolder(root = DATAROOT,
+    dataset = dset.ImageFolder(root = args.dataroot,
                                 transform=transforms.Compose([
                                 transforms.Resize(img_size),
                                 transforms.CenterCrop(img_size),
@@ -106,12 +107,14 @@ if __name__ == '__main__':
     print("==========================Grouping stage==========================")
     # create group or join group
     if args.creator: # create group
-        contract_ins.functions.init_group(args.registry, args.group).transact()
+        contract_ins.functions.init_group(args.group).transact()
+        time.sleep(20)
         id = contract_ins.functions.get_memberID(group_id).call()
         print(f"Create group {group_id}, member id = {id}")
     
     else: # join group
         contract_ins.functions.join_group(args.group).transact()
+        time.sleep(20)
         id = contract_ins.functions.get_memberID(group_id).call()
         print(f"Join group {group_id}, member id = {id}")
 
@@ -226,15 +229,15 @@ if __name__ == '__main__':
         # wait for all clients upload their model
         while not upload_finish:
             for log in model_filter.get_new_entries():
-                res = log[0]['args']
-                if res['round'] == round:
+                res = log['args']
+                if res['round'] == round and res['group_id'] == group_id:
                     upload_finish = True
                 time.sleep(pool_interval)
         
         # ===========================================================================
         # Aggregate stage
         print("==========================Aggregation stage==========================")
-        aggreator_id = contract_ins.functions.get_aggreator(group_id).call()
+        aggreator_id = contract_ins.functions.get_aggrgator(group_id).call()
         total = contract_ins.functions.get_member_count(group_id).call()
         count = int(total / 2)
         aggregate = False
@@ -269,7 +272,7 @@ if __name__ == '__main__':
             # wait for aggregation complete
             while not aggregation_complete:
                 for log in aggregate_filter.get_new_entries():
-                    res = log[0]['args']
+                    res = log['args']
                     if res['round'] == round: # aggregation of this round has completed
                         aggregation_complete = True
 
@@ -354,13 +357,13 @@ if __name__ == '__main__':
         global_accept = False
         while not validation_complete:
             for log in globalA_filter.get_new_entries():
-                res = log[0]['args']
+                res = log['args']
                 if res['round'] == round:
                     global_accept = True
                     validation_complete = True
                 
             for log in globalR_filter.get_new_entries():
-                res = log[0]['args']
+                res = log['args']
                 if res['round'] == round:
                     validation_complete = True
             time.sleep(pool_interval)

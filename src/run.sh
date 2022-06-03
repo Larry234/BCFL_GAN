@@ -1,1 +1,1 @@
-python DogFaceNet_Client_sync.py --creator --group 3 --registry 4 --device 0
+python DogFaceNet_Client_sync.py --creator --group 5 --device 0 --dataroot /home/barry/BCFL_GAN/after_4_bis
