@@ -274,7 +274,6 @@ if __name__ == '__main__':
         # this client is the chosen aggreator
         if aggreator_id == id:
             print("Do aggregation")
-            aggregate = True
             G_hs, D_hs = contract_ins.functions.fetch_model(round, group_id).call()
 
             # fetch files from IPFS and do Federated Average
@@ -290,7 +289,7 @@ if __name__ == '__main__':
 
             # generate random id for validation
             val_id = random.sample(range(total), count)
-            contract_ins.functions.choose_validator(round, val_id).transact()
+            contract_ins.functions.choose_validator(group_id, round, val_id).transact()
 
 
         # wait for aggregation complete
@@ -308,7 +307,7 @@ if __name__ == '__main__':
         # ========================================================
         # validate stage
         print("==========================Validation stage==========================")
-        validators = contract_ins.functions.get_validator(round).call()
+        validators = contract_ins.functions.get_validator(group_id, round).call()
         valid = False
         # choose to be validator this round
         if id in validators:
