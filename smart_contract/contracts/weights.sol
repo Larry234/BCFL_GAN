@@ -3,13 +3,13 @@ pragma solidity >=0.4.22 <0.9.0;
 
 contract NetworkWeights {
     
-    mapping(uint => Item[]) public gen_models;
-    mapping(uint => Item[]) public dis_models;
     mapping(uint => Group) groups;
     mapping(uint => uint[]) validators;
 
     uint[50][8] modelG_count;
     uint[50][8] modelD_count;
+    string[][50][8] gen_models;
+    string[][50][8] dis_models;
     string[50][8] global_genModels;
     string[50][8] global_disModels;
     uint[50][8] vote_result;
@@ -78,15 +78,13 @@ contract NetworkWeights {
 
     function upload_model(string memory gen, string memory dis, uint round, uint group_id) public {
 
-        require(modelG_count[group_id][round] < groups[group_id].member_count, "too generator models uploaded!");
+        require(modelG_count[group_id][round] < groups[group_id].member_count, "too much generator models uploaded!");
         modelG_count[group_id][round] += 1;
-        Item memory item = Item(msg.sender, gen);
-        gen_models[round].push(item);
+        gen_models[group_id][round].push(gen);
 
-        require(modelD_count[group_id][round] < groups[group_id].member_count, "too discriminator models uploaded!");
+        require(modelD_count[group_id][round] < groups[group_id].member_count, "too much discriminator models uploaded!");
         modelD_count[group_id][round] += 1;
-        Item memory item1 = Item(msg.sender, dis);
-        dis_models[round].push(item1);
+        dis_models[group_id][round].push(dis);
 
         // check if all clients upload their model
         if (modelD_count[group_id][round] == groups[group_id].member_count && modelG_count[group_id][round] == groups[group_id].member_count) 
@@ -121,14 +119,12 @@ contract NetworkWeights {
 
     function fetch_model(uint round, uint group_id) public view returns(string [] memory m1, string [] memory m2) {
 
-        uint data_count = groups[group_id].member_count;
-        string[] memory gen_ret = new string[](data_count);
-        string[] memory dis_ret = new string[](data_count);
+        string[] memory gen_ret = new string[](modelG_count[group_id][round]);
+        string[] memory dis_ret = new string[](modelD_count[group_id][round]);
 
-        // fetch all model stored in contract
-        for (uint i = 0; i < data_count; i++) {
-            gen_ret[i] = gen_models[round][i].IPFS_hash;
-            dis_ret[i] = dis_models[round][i].IPFS_hash;
+        for (uint i = 0; i < gen_ret.length; i++) {
+            gen_ret[i] = gen_models[group_id][round][i];
+            dis_ret[i] = dis_models[group_id][round][i];
         }
 
         return (gen_ret, dis_ret);
