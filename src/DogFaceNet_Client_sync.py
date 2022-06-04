@@ -141,8 +141,9 @@ if __name__ == '__main__':
 
         if not os.path.exists(os.path.join('runs', f'round{round}')):
             os.mkdir(os.path.join('runs', f'round{round}'))
-        
-        print(f'training round {round}')
+        print('\n')
+        print(f'                               training round {round}                               ')
+        print('\n')
         best_g = 100
         best_d = 100
 
@@ -285,7 +286,6 @@ if __name__ == '__main__':
             GD_hs = client.add_json(global_D)
 
             print(f'Global generator hash :{GG_hs}\nGlobal Discriminator hash: {GD_hs}')
-            print(f'group id: {group_id}, round: {round}')
             contract_ins.functions.upload_globalModel(GG_hs, GD_hs, round, group_id).transact()
 
             # generate random id for validation
@@ -401,14 +401,20 @@ if __name__ == '__main__':
             generator.load_state_dict(load_model(client, global_gen))
             discriminator.load_state_dict(load_model(client, global_dis))
 
+plt.figure(figsize=(10,5))
+plt.title("Generator and Discriminator Loss During Training")
+plt.plot(G_losses,label="G")
+plt.plot(D_losses,label="D")
+plt.xlabel("iterations")
+plt.ylabel("Loss")
+plt.legend()
+plt.show()
 
-fig = plt.figure(figsize=(8,8))
+plt.subplot(1,2,2)
 plt.axis("off")
-ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in img_list]
-ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
-
-HTML(ani.to_jshtml())
-
+plt.title("Fake Images")
+plt.imshow(np.transpose(img_list[-1],(1,2,0)))
+plt.show()
 
 
 

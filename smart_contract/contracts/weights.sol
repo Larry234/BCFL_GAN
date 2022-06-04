@@ -4,7 +4,6 @@ pragma solidity >=0.4.22 <0.9.0;
 contract NetworkWeights {
     
     mapping(uint => Group) groups;
-    mapping(uint => uint[]) validators;
 
     uint[50][8] modelG_count;
     uint[50][8] modelD_count;
@@ -12,6 +11,7 @@ contract NetworkWeights {
     string[][50][8] dis_models;
     string[50][8] global_genModels;
     string[50][8] global_disModels;
+    uint[][50][8] validators;
     uint[50][8] vote_result;
     uint[50][8] vote_count;
 
@@ -158,16 +158,16 @@ contract NetworkWeights {
         
     }
 
-    function choose_validator(uint round, uint[] memory vals) public {
+    function choose_validator(uint group_id, uint round, uint[] memory vals) public {
         
         for (uint i = 0; i < vals.length; i++) {
-            validators[round].push(vals[i]);
+            validators[group_id][round].push(vals[i]);
         }
     }
 
-    function get_validator(uint round) public view returns (uint[] memory) {
+    function get_validator(uint group_id, uint round) public view returns (uint[] memory) {
 
-        return validators[round];
+        return validators[group_id][round];
     }
 
 
