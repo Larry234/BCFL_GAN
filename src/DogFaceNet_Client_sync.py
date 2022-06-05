@@ -232,6 +232,12 @@ if __name__ == '__main__':
             # log training result
             print("epoch[{}/{}]:\nLoss_D: {:.4f} Loss_G: {:.4f}".format(epoch, epochs, dis_loss/len(dataloader), gen_loss/len(dataloader)))
 
+        plt.subplot(1,2,2)
+        plt.axis("off")
+        plt.title("Fake Images")
+        plt.imshow(np.transpose(img_list[-1],(1,2,0)))
+        plt.show()
+        
         # upload model
         # save model state_dict to json format
         print("uploading model")
@@ -256,12 +262,18 @@ if __name__ == '__main__':
         print("Wait for all clients upload their models...")
         # wait for all clients upload their model
         while not upload_finish:
-            for log in model_filter.get_new_entries():
-                res = log['args']
-                if res['round'] == round and res['group_id'] == group_id:
-                    upload_finish = True
-                time.sleep(pool_interval)
-        
+            try:
+                for log in model_filter.get_all_entries():
+                    res = log['args']
+                    if res['round'] == round and res['group_id'] == group_id:
+                        upload_finish = True
+                    time.sleep(pool_interval)
+
+            except ValueError:
+                model_filter = contract_ins.events.allModel_uploaded.createFilter(fromBlock=0, toBlock='latest')  
+
+            finally: 
+                continue
         # ===========================================================================
         # Aggregate stage
         print("==========================Aggregation stage==========================")
@@ -297,11 +309,18 @@ if __name__ == '__main__':
 
         # wait for aggregation complete
         while not aggregation_complete:
-            for log in aggregate_filter.get_new_entries():
-                res = log['args']
-                if res['round'] == round and res['group_id'] == group_id: # aggregation of this round has completed
-                    aggregation_complete = True
-            time.sleep(pool_interval)
+            try:
+                for log in aggregate_filter.get_all_entries():
+                    res = log['args']
+                    if res['round'] == round and res['group_id'] == group_id: # aggregation of this round has completed
+                        aggregation_complete = True
+                time.sleep(pool_interval)
+
+            except ValueError:
+                aggregate_filter = contract_ins.events.aggregation_complete.createFilter(fromBlock=0, toBlock='latest')
+            
+            finally:
+                continue
 
         # ========================================================
         # validate stage
@@ -371,18 +390,26 @@ if __name__ == '__main__':
         validation_complete = False
         global_accept = False
         while not validation_complete:
-            for log in globalA_filter.get_new_entries():
-                res = log['args']
-                if res['round'] == round:
-                    global_accept = True
-                    validation_complete = True
-                
-            for log in globalR_filter.get_new_entries():
-                res = log['args']
-                if res['round'] == round:
-                    validation_complete = True
-            time.sleep(pool_interval)
-                
+            try:
+                for log in globalA_filter.get_all_entries():
+                    res = log['args']
+                    if res['round'] == round and res['group'] == group_id:
+                        global_accept = True
+                        validation_complete = True
+                    
+                for log in globalR_filter.get_all_entries():
+                    res = log['args']
+                    if res['round'] == round and res['group'] == group_id:
+                        validation_complete = True
+                time.sleep(pool_interval)
+
+            except ValueError:
+                globalA_filter = contract_ins.events.global_accept.createFilter(fromBlock=0, toBlock='latest')
+                globalB_filter = contract_ins.events.global_reject.createFilter(fromBlock=0, toBlock='latest')
+            
+            finally:
+                continue
+                    
         # reload model from best checkpoint
         if not global_accept:
             # load global model weight
@@ -408,11 +435,7 @@ plt.ylabel("Loss")
 plt.legend()
 plt.show()
 
-plt.subplot(1,2,2)
-plt.axis("off")
-plt.title("Fake Images")
-plt.imshow(np.transpose(img_list[-1],(1,2,0)))
-plt.show()
+
 
 
 
